@@ -1,0 +1,14 @@
+{
+  "name": "image-forgery-detection",
+  "version": "2.0.0",
+  "description": "Image forensics detection system",
+  "private": true,
+  "scripts": {
+    "start:backend": "python -m uvicorn backend.main:app --port 8000 --log-level warning",
+    "start:frontend": "npm run dev --prefix frontend",
+    "dev": "concurrently -n \"BACKEND,FRONTEND\" -c \"blue.bold,magenta.bold\" --kill-others \"python -m uvicorn backend.main:app --port 8000 --reload\" \"npm run dev --prefix frontend\""
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}
