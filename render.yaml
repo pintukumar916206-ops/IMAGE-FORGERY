@@ -3,7 +3,7 @@ services:
   - type: web
     name: image-forgery-backend
     runtime: docker
-    plan: free # No payment needed
+    plan: free
     envVars:
       - key: DEBUG
         value: "False"
@@ -21,9 +21,4 @@ services:
     dockerContext: ./frontend
     dockerfilePath: Dockerfile
     plan: free
-    envVars:
-      - key: VITE_API_URL
-        fromService:
-          type: web
-          name: image-forgery-backend
-          property: url
+    # VITE_API_URL will be added manually in the dashboard after deployment
