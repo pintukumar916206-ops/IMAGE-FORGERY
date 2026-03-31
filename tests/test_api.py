@@ -1,4 +1,8 @@
 import io
+import os
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 import pytest
 from fastapi.testclient import TestClient
@@ -9,13 +13,11 @@ from backend.core.detector import ForgeryDetector
 from backend.core.ml_detector import MLDetector
 from backend.main import app
 
-
 def _make_test_image_bytes() -> bytes:
     image = Image.new("RGB", (64, 64), color="white")
     buffer = io.BytesIO()
     image.save(buffer, format="JPEG")
     return buffer.getvalue()
-
 
 def _get_auth_headers(client: TestClient) -> dict:
     response = client.post(
@@ -24,7 +26,6 @@ def _get_auth_headers(client: TestClient) -> dict:
     )
     assert response.status_code == 200
     return {"Authorization": f"Bearer {response.json()['access_token']}"}
-
 
 @pytest.fixture
 def enforce_auth_sync_mode():
@@ -36,12 +37,10 @@ def enforce_auth_sync_mode():
     settings.API_KEY_REQUIRED = original_auth
     settings.SYNC_MODE = original_sync
 
-
 def test_token_rejects_invalid_credentials():
     client = TestClient(app)
     response = client.post("/api/token", data={"username": "bad", "password": "bad"})
     assert response.status_code == 401
-
 
 def test_detect_requires_auth(enforce_auth_sync_mode):
     client = TestClient(app)
@@ -50,7 +49,6 @@ def test_detect_requires_auth(enforce_auth_sync_mode):
         files={"file": ("sample.jpg", _make_test_image_bytes(), "image/jpeg")},
     )
     assert response.status_code == 401
-
 
 def test_detect_sync_with_auth_returns_report(enforce_auth_sync_mode, monkeypatch):
     def fake_predict_file(self, file_path):  # noqa: ARG001
@@ -92,5 +90,3 @@ def test_detect_sync_with_auth_returns_report(enforce_auth_sync_mode, monkeypatc
     report_response = client.get(f"/api/report/{task_id}", headers=headers)
     assert report_response.status_code == 200
     assert report_response.json()["is_forged"] is False
-
-

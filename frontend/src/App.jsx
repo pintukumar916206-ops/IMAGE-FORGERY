@@ -4,7 +4,7 @@ import { AnimatePresence } from "framer-motion";
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000/api";
 const API_USERNAME = import.meta.env.VITE_API_USERNAME || "analyst";
-const API_PASSWORD = import.meta.env.VITE_API_PASSWORD || "change-me-analyst";
+const API_PASSWORD = import.meta.env.VITE_API_PASSWORD || "change-me-analyst-secure";
 const TOKEN_STORAGE_KEY = "forgery_api_token";
 
 function App() {
@@ -51,32 +51,39 @@ function App() {
     setSelectedFile(event.dataTransfer.files[0]);
   };
 
-  const fetchToken = async () => {
-    const existing = localStorage.getItem(TOKEN_STORAGE_KEY);
-    if (existing) {
-      return existing;
+  const fetchToken = async (fresh = false) => {
+    if (!fresh) {
+      const existing = localStorage.getItem(TOKEN_STORAGE_KEY);
+      if (existing) {
+        return existing;
+      }
     }
 
     const payload = new URLSearchParams();
     payload.append("username", API_USERNAME);
     payload.append("password", API_PASSWORD);
 
-    const response = await axios.post(`${API_BASE}/token`, payload, {
-      timeout: 10000,
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    });
+    try {
+      const response = await axios.post(`${API_BASE}/token`, payload, {
+        timeout: 10000,
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      });
 
-    const token = response.data?.access_token;
-    if (!token) {
-      throw new Error("Token endpoint did not return an access token.");
+      const token = response.data?.access_token;
+      if (!token) {
+        throw new Error("Token endpoint did not return an access token.");
+      }
+
+      localStorage.setItem(TOKEN_STORAGE_KEY, token);
+      return token;
+    } catch (err) {
+      localStorage.removeItem(TOKEN_STORAGE_KEY);
+      throw err;
     }
-
-    localStorage.setItem(TOKEN_STORAGE_KEY, token);
-    return token;
   };
 
-  const buildAuthHeaders = async () => {
-    const token = await fetchToken();
+  const buildAuthHeaders = async (fresh = false) => {
+    const token = await fetchToken(fresh);
     return { Authorization: `Bearer ${token}` };
   };
 
@@ -158,7 +165,7 @@ function App() {
 
   const processImage = async (retryArg) => {
     const isRetry = retryArg === true;
-    
+
     if (!file) {
       setError("Please select an image first.");
       return;
@@ -197,14 +204,13 @@ function App() {
         if (!isRetry) {
           return processImage(true);
         }
-      }
-
-      if (requestError.code === "ECONNABORTED") {
-        setError("Request timeout. Please try with a smaller image.");
+        setError("Authentication failed. Check credentials in .env");
+      } else if (requestError.code === "ECONNABORTED") {
+        setError("Request timeout. Try a smaller image.");
       } else if (requestError.response?.data?.detail) {
         setError(`Error: ${requestError.response.data.detail}`);
-      } else if (requestError.message === "Network Error") {
-        setError("Cannot connect to backend. Ensure server is running.");
+      } else if (!requestError.response) {
+        setError("Cannot connect to backend at " + API_BASE + ". Ensure server is running on port 8000.");
       } else {
         setError("Analysis failed. Please try again.");
       }
@@ -304,9 +310,14 @@ function App() {
 
                           {report.evidence?.ml?.score !== undefined && (
                             <div className="ml-score">
-                              <h3>ML Model Score</h3>
+                              <div className="ml-score-header">
+                                <h3>ML Model Score</h3>
+                                <span className={`model-status-badge ${report.evidence.ml.fallback_used ? "heuristic" : "active"}`}>
+                                  {report.evidence.ml.fallback_used ? "Heuristic Mode" : "Model Active"}
+                                </span>
+                              </div>
                               <p style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>{report.evidence.ml.score}%</p>
-                              
+
                               {report.evidence.ml.hard_metrics && (
                                 <div className="hard-metrics">
                                   <h4>Model Benchmarks</h4>
@@ -314,31 +325,33 @@ function App() {
                                   <div className="metric-row"><span>Architecture:</span> <span>{report.evidence.ml.hard_metrics.model_architecture}</span></div>
                                   <div className="metric-row summary-metric"><span>Accuracy Verification:</span> <span>{report.evidence.ml.hard_metrics.proven_accuracy}</span></div>
                                   <div className="metric-row summary-metric text-orange"><span>False Pos Rate:</span> <span>{report.evidence.ml.hard_metrics.false_positive_rate}</span></div>
-                                  
-                                  <div className="confusion-matrix-box">
-                                    <h4>Confusion Matrix</h4>
-                                    <table className="confusion-table">
-                                      <thead>
-                                        <tr>
-                                          <th></th>
-                                          <th>P. Auth</th>
-                                          <th>P. Forge</th>
-                                        </tr>
-                                      </thead>
-                                      <tbody>
-                                        <tr>
-                                          <th>A. Auth</th>
-                                          <td className="true-negative">{report.evidence.ml.hard_metrics.confusion_matrix[0][0]}</td>
-                                          <td className="false-positive">{report.evidence.ml.hard_metrics.confusion_matrix[0][1]}</td>
-                                        </tr>
-                                        <tr>
-                                          <th>A. Forge</th>
-                                          <td className="false-negative">{report.evidence.ml.hard_metrics.confusion_matrix[1][0]}</td>
-                                          <td className="true-positive">{report.evidence.ml.hard_metrics.confusion_matrix[1][1]}</td>
-                                        </tr>
-                                      </tbody>
-                                    </table>
-                                  </div>
+
+                                  {report.evidence.ml.hard_metrics.confusion_matrix && (
+                                    <div className="confusion-matrix-box">
+                                      <h4>Confusion Matrix</h4>
+                                      <table className="confusion-table">
+                                        <thead>
+                                          <tr>
+                                            <th></th>
+                                            <th>P. Auth</th>
+                                            <th>P. Forge</th>
+                                          </tr>
+                                        </thead>
+                                        <tbody>
+                                          <tr>
+                                            <th>A. Auth</th>
+                                            <td className="true-negative">{report.evidence.ml.hard_metrics.confusion_matrix[0][0]}</td>
+                                            <td className="false-positive">{report.evidence.ml.hard_metrics.confusion_matrix[0][1]}</td>
+                                          </tr>
+                                          <tr>
+                                            <th>A. Forge</th>
+                                            <td className="false-negative">{report.evidence.ml.hard_metrics.confusion_matrix[1][0]}</td>
+                                            <td className="true-positive">{report.evidence.ml.hard_metrics.confusion_matrix[1][1]}</td>
+                                          </tr>
+                                        </tbody>
+                                      </table>
+                                    </div>
+                                  )}
                                 </div>
                               )}
                             </div>

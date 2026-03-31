@@ -25,19 +25,19 @@ async def prometheus_middleware(request: Request, call_next):
     start_time = time.time()
     response = await call_next(request)
     process_time = time.time() - start_time
-    
+
     if request.url.path != "/api/metrics":
         REQUEST_COUNT.labels(
             method=request.method,
             endpoint=request.url.path,
             status=response.status_code
         ).inc()
-        
+
         REQUEST_LATENCY.labels(
             method=request.method,
             endpoint=request.url.path
         ).observe(process_time)
-        
+
     return response
 
 def metrics_endpoint():

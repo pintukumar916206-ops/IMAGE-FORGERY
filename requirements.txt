@@ -13,3 +13,6 @@ pydantic-settings>=2.0.0
 PyJWT>=2.8.0
 prometheus-client>=0.18.0
 onnxruntime>=1.19.2
+
+# CNN training only (not needed to run the API)
+# pip install torch torchvision

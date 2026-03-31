@@ -516,3 +516,35 @@ body {
   font-weight: 600;
   box-shadow: 0 0 10px rgba(34, 197, 94, 0.1);
 }
+
+.ml-score-header {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 0.25rem;
+}
+
+.ml-score-header h3 {
+  margin-bottom: 0;
+}
+
+.model-status-badge {
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 0.2rem 0.55rem;
+  border-radius: 10px;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+}
+
+.model-status-badge.active {
+  background: rgba(34, 197, 94, 0.12);
+  color: var(--green);
+  border: 1px solid rgba(34, 197, 94, 0.35);
+}
+
+.model-status-badge.heuristic {
+  background: rgba(251, 146, 60, 0.12);
+  color: #fb923c;
+  border: 1px solid rgba(251, 146, 60, 0.35);
+}

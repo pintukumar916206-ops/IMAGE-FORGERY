@@ -51,7 +51,7 @@ def complete_task(task_id: str, final_report: dict = None) -> None:
             "report_id": task_id
         })
         db.save_task(task_id, task_data)
-        
+
     if final_report:
         db.save_report(task_id, final_report)
 
