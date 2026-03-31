@@ -165,25 +165,18 @@ class ForgeryDetector:
             logger.debug(f"SIFT analysis failed: {e}")
             return None
 
-    def detect_bytes(self, file_bytes: bytes, ml_result: dict = None) -> dict:
+    def detect_file(self, file_path: str, ml_result: dict = None) -> dict:
         try:
-            temp_path = f"temp_{uuid.uuid4()}.jpg"
-            with open(temp_path, "wb") as f:
-                f.write(file_bytes)
+            exif_res = self._analyze_exif(file_path)
+            ela_res = self._analyze_ela(file_path)
             
-            exif_res = self._analyze_exif(temp_path)
-            ela_res = self._analyze_ela(temp_path)
-            
-            img = cv2.imdecode(np.frombuffer(file_bytes, np.uint8), cv2.IMREAD_COLOR)
+            img = cv2.imread(file_path, cv2.IMREAD_COLOR)
             if img is None:
                 raise ValueError("Invalid or corrupted image data.")
             
             sift_res = self._analyze_sift(img)
             if not sift_res:
                 sift_res = {"is_forged": False, "clone_clusters_found": 0, "sift_heatmap_b64": None}
-            
-            if os.path.exists(temp_path):
-                os.remove(temp_path)
                 
             ml_score = ml_result.get("score", 0.0) if ml_result else 0.0
             

@@ -53,10 +53,10 @@ def test_detect_requires_auth(enforce_auth_sync_mode):
 
 
 def test_detect_sync_with_auth_returns_report(enforce_auth_sync_mode, monkeypatch):
-    def fake_predict_bytes(self, file_bytes):  # noqa: ARG001
+    def fake_predict_file(self, file_path):  # noqa: ARG001
         return {"score": 11.0, "fallback_used": True}
 
-    def fake_detect_bytes(self, file_bytes, ml_result=None):  # noqa: ARG001
+    def fake_detect_file(self, file_path, ml_result=None):  # noqa: ARG001
         return {
             "is_forged": False,
             "confidence": 12,
@@ -69,8 +69,8 @@ def test_detect_sync_with_auth_returns_report(enforce_auth_sync_mode, monkeypatc
             },
         }
 
-    monkeypatch.setattr(MLDetector, "predict_bytes", fake_predict_bytes)
-    monkeypatch.setattr(ForgeryDetector, "detect_bytes", fake_detect_bytes)
+    monkeypatch.setattr(MLDetector, "predict_file", fake_predict_file)
+    monkeypatch.setattr(ForgeryDetector, "detect_file", fake_detect_file)
 
     client = TestClient(app)
     headers = _get_auth_headers(client)

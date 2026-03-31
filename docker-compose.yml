@@ -7,20 +7,8 @@ services:
       dockerfile: Dockerfile
     ports:
       - "8000:8000"
-    environment:
-      - HOST=0.0.0.0
-      - PORT=8000
-      - DEBUG=False
-      - ALLOWED_ORIGINS=http://localhost:5173,http://localhost:3000
-      - SYNC_MODE=False
-      - API_KEY_REQUIRED=true
-      - SECRET_KEY=dev-secret-key-change-in-production
-      - ADMIN_USERNAME=admin
-      - ADMIN_PASSWORD=change-me-admin
-      - ANALYST_USERNAME=analyst
-      - ANALYST_PASSWORD=change-me-analyst
-      - ELA_THRESHOLD=25.0
-      - SIFT_RATIO_THRESHOLD=0.65
+    env_file:
+      - .env
     volumes:
       - ./uploads:/app/uploads
     command: python -m uvicorn backend.main:app --host 0.0.0.0 --port 8000
@@ -35,10 +23,10 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        - VITE_API_URL=http://localhost:8000/api
     ports:
-      - "5173:5173"
-    environment:
-      - VITE_API_URL=http://localhost:8000/api
+      - "80:80"
     depends_on:
       backend:
         condition: service_healthy

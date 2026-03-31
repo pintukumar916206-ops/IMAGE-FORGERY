@@ -35,8 +35,9 @@ backend_stderr.log
 .env.*.local
 
 # Project specific
-uploads/
-reports/
+uploads/*
+!uploads/.gitkeep
+forgery.sqlite
 node_modules/
 dist/
 frontend/node_modules/

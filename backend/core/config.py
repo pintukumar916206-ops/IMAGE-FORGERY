@@ -30,18 +30,14 @@ class Settings(BaseSettings):
     ENTROPY_THRESHOLD: float = float(os.getenv("ENTROPY_THRESHOLD", "5.0"))
 
     API_KEY_REQUIRED: bool = _to_bool(os.getenv("API_KEY_REQUIRED"), default=True)
-    SECRET_KEY: str = os.getenv("SECRET_KEY", "super-secret-production-key-change-me")
+    SECRET_KEY: str
     ALGORITHM: str = os.getenv("ALGORITHM", "HS256")
     ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "60"))
     ADMIN_USERNAME: str = os.getenv("ADMIN_USERNAME", "admin")
-    ADMIN_PASSWORD: str = os.getenv("ADMIN_PASSWORD", "change-me-admin")
+    ADMIN_PASSWORD: str
     ANALYST_USERNAME: str = os.getenv("ANALYST_USERNAME", "analyst")
-    ANALYST_PASSWORD: str = os.getenv("ANALYST_PASSWORD", "change-me-analyst")
+    ANALYST_PASSWORD: str
     
-    REDIS_URL: str = os.getenv("REDIS_URL", "redis://localhost:6379/0")
-    CELERY_BROKER_URL: str = os.getenv("CELERY_BROKER_URL", REDIS_URL)
-    CELERY_RESULT_BACKEND: str = os.getenv("CELERY_RESULT_BACKEND", CELERY_BROKER_URL)
-    CELERY_WORKER_CONCURRENCY: int = int(os.getenv("CELERY_WORKER_CONCURRENCY", "4"))
     SYNC_MODE: bool = _to_bool(os.getenv("SYNC_MODE"), default=False)
     REPORT_EXPIRATION_HOURS: int = int(os.getenv("REPORT_EXPIRATION_HOURS", "24"))
 

@@ -11,7 +11,6 @@ from fastapi import Depends, FastAPI, File, HTTPException, Request, UploadFile, 
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.security import OAuth2PasswordRequestForm
-from PIL import Image
 from slowapi import Limiter
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
@@ -97,10 +96,10 @@ def require_auth_if_enabled(request: Request) -> Optional[TokenData]:
     return decode_access_token(token)
 
 
-def validate_image_dimensions_bytes(file_bytes: bytes) -> None:
+def validate_image_dimensions_file(file_path: str) -> None:
     try:
-        from io import BytesIO
-        with Image.open(BytesIO(file_bytes)):
+        from PIL import Image
+        with Image.open(file_path):
             pass
     except Exception as exc:
         raise ValueError(f"Invalid image format: {exc}") from exc
@@ -125,19 +124,22 @@ def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):
     return {"access_token": access_token, "token_type": "bearer"}
 
 
-def analyze_image_task(file_bytes: bytes, task_id: str):
+def analyze_image_task(file_path: str, task_id: str):
     try:
         update_task_progress(task_id, TaskStatus.ML_SCORING, "Initializing ML scoring...", 10, 5.0)
-        ml_res = ml_detector.predict_bytes(file_bytes)
+        ml_res = ml_detector.predict_file(file_path)
         
         update_task_progress(task_id, TaskStatus.FORENSIC_SUITE, "Running EXIF, ELA, and copy-move analysis...", 40, 10.0)
-        report = detector.detect_bytes(file_bytes, ml_result=ml_res)
+        report = detector.detect_file(file_path, ml_result=ml_res)
         report["task_id"] = task_id
         
         complete_task(task_id, report)
     except Exception as exc:
         logger.error(f"Analysis failed: {exc}")
         error_task(task_id, str(exc))
+    finally:
+        if os.path.exists(file_path):
+            os.remove(file_path)
 
 @app.post("/api/detect")
 @limiter.limit("30/minute")
@@ -147,16 +149,23 @@ async def handle_detection(
     file: UploadFile = File(...),
     _current_user: Optional[TokenData] = Depends(require_auth_if_enabled),
 ):
+    import shutil
+    import os
     task_id = str(uuid.uuid4())
 
     create_task(task_id)
     ANALYSIS_TASK_COUNT.inc()
 
+    UPLOAD_DIR = "uploads"
+    os.makedirs(UPLOAD_DIR, exist_ok=True)
+    file_path = os.path.join(UPLOAD_DIR, f"{task_id}.jpg")
     try:
-        file_bytes = await file.read()
-        validate_image_dimensions_bytes(file_bytes)
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
 
-        background_tasks.add_task(analyze_image_task, file_bytes, task_id)
+        validate_image_dimensions_file(file_path)
+
+        background_tasks.add_task(analyze_image_task, file_path, task_id)
 
         return JSONResponse(
             content={
@@ -166,13 +175,19 @@ async def handle_detection(
             }
         )
     except HTTPException as http_exc:
+        if os.path.exists(file_path):
+            os.remove(file_path)
         error_task(task_id, str(http_exc.detail))
         raise
     except ValueError as value_error:
+        if os.path.exists(file_path):
+            os.remove(file_path)
         logger.error("Validation error: %s", value_error)
         error_task(task_id, str(value_error))
         raise HTTPException(status_code=400, detail=str(value_error)) from value_error
     except Exception as exc:
+        if os.path.exists(file_path):
+            os.remove(file_path)
         logger.exception("Queue error: %s", exc)
         error_task(task_id, str(exc))
         raise HTTPException(status_code=500, detail="Failed to queue analysis.") from exc
@@ -183,8 +198,7 @@ async def get_report(
     report_id: str,
     _current_user: Optional[TokenData] = Depends(require_auth_if_enabled),
 ):
-    report_data = get_report_data(report_id)
-    if not report_data:
+    if not (report_data := get_report_data(report_id)):
         raise HTTPException(status_code=404, detail="Report not found.")
 
     return report_data
@@ -203,12 +217,11 @@ async def get_task_progress(
 
 @app.get("/api/health")
 async def health_check():
-    health = {
+    return {
         "status": "ok",
         "version": "3.0.0",
         "checks": {"auth_enabled": settings.API_KEY_REQUIRED},
     }
-    return health
 
 
 if __name__ == "__main__":
