@@ -1,0 +1,43 @@
+services:
+  # 1. Forensic Backend Service
+  - type: web
+    name: image-forgery-backend
+    runtime: docker
+    plan: starter # Required for persistent disks
+    healthCheckPath: /api/health
+    envVars:
+      - key: DEBUG
+        value: "False"
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DB_PATH
+        value: "/app/data/forgery.sqlite"
+      - key: UPLOAD_DIR
+        value: "/app/data/uploads"
+      - fromGroup: image-forgery-config
+    disk:
+      name: image-forgery-storage
+      mountPath: /app/data
+      sizeGB: 1
+
+  # 2. Forensic Frontend Service
+  - type: web
+    name: image-forgery-frontend
+    runtime: docker
+    dockerContext: ./frontend
+    dockerfilePath: Dockerfile
+    plan: free
+    envVars:
+      - key: VITE_API_URL
+        fromService:
+          type: web
+          name: image-forgery-backend
+          property: url
+
+envGroups:
+  - name: image-forgery-config
+    envVars:
+      - key: ELA_THRESHOLD
+        value: "8.0"
+      - key: REPORT_EXPIRATION_HOURS
+        value: "24"

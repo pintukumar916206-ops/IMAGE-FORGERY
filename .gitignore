@@ -1,4 +1,4 @@
-# Python
+# Python & Environment
 __pycache__/
 *.py[cod]
 *$py.class
@@ -7,48 +7,47 @@ __pycache__/
 env/
 venv/
 .venv/
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-.pytest_cache/
-
-# Logs
-*.log
-backend_stdout.log
-backend_stderr.log
-
-# Environment variables
 .env
 .env.local
 .env.*.local
+.pytest_cache/
+*.egg-info/
+*.egg
 
-# Project specific
+# Node & Frontend
+node_modules/
+dist/
+build/
+frontend/node_modules/
+frontend/dist/
+frontend/build/
+.npm
+.eslintcache
+
+# Project Specific
 uploads/*
 !uploads/.gitkeep
 forgery.sqlite
-node_modules/
-dist/
-frontend/node_modules/
-frontend/dist/
+backend_stdout.log
+backend_stderr.log
+*.log
 
-# IDEs
+# Assistant & Logs
+.gemini/
+.agents/
+.agent/
+_agents/
+_agent/
+
+# IDEs & Editor
 .vscode/
 .idea/
 *.swp
 *.swo
+*.sublime-project
+*.sublime-workspace
 
-# OS
+# Operating System
 .DS_Store
 Thumbs.db
+desktop.ini

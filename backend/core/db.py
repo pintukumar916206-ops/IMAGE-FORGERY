@@ -1,98 +1,105 @@
-import json
 import os
-import sqlite3
+import json
 import time
-from typing import Optional
+from typing import Optional, Dict, Tuple
+from sqlalchemy import create_engine, Column, String, Text
+from sqlalchemy.orm import sessionmaker, declarative_base, Session
 
 DB_PATH = os.getenv("DB_PATH", "forgery.sqlite")
+DATABASE_URL = f"sqlite:///{DB_PATH}"
 
+engine = create_engine(
+    DATABASE_URL, 
+    connect_args={"check_same_thread": False},
+    pool_pre_ping=True
+)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+Base = declarative_base()
 
-def get_db() -> sqlite3.Connection:
-    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
-    conn.row_factory = sqlite3.Row
-    return conn
+class Task(Base):
+    __tablename__ = "tasks"
+    task_id = Column(String, primary_key=True, index=True)
+    data = Column(Text, nullable=False)
 
+class Report(Base):
+    __tablename__ = "reports"
+    report_id = Column(String, primary_key=True, index=True)
+    data = Column(Text, nullable=False)
 
-def init_db() -> None:
-    conn = get_db()
+def init_db():
+    Base.metadata.create_all(bind=engine)
+    with engine.connect() as conn:
+        try:
+            conn.exec_driver_sql("PRAGMA journal_mode=WAL")
+            conn.exec_driver_sql("PRAGMA synchronous=NORMAL")
+            conn.commit()
+        except Exception:
+            pass
+
+def get_session() -> Session:
+    return SessionLocal()
+
+def save_task(task_id: str, data: Dict) -> None:
+    session = get_session()
     try:
-        conn.execute(
-            "CREATE TABLE IF NOT EXISTS tasks "
-            "(task_id TEXT PRIMARY KEY, data TEXT NOT NULL)"
-        )
-        conn.execute(
-            "CREATE TABLE IF NOT EXISTS reports "
-            "(report_id TEXT PRIMARY KEY, data TEXT NOT NULL)"
-        )
-        conn.commit()
+        task = session.query(Task).filter(Task.task_id == task_id).first()
+        if task:
+            task.data = json.dumps(data)
+        else:
+            task = Task(task_id=task_id, data=json.dumps(data))
+            session.add(task)
+        session.commit()
     finally:
-        conn.close()
+        session.close()
 
-
-def save_task(task_id: str, data: dict) -> None:
-    conn = get_db()
+def get_task(task_id: str) -> Optional[Dict]:
+    session = get_session()
     try:
-        conn.execute(
-            "INSERT OR REPLACE INTO tasks (task_id, data) VALUES (?, ?)",
-            (task_id, json.dumps(data)),
-        )
-        conn.commit()
+        task = session.query(Task).filter(Task.task_id == task_id).first()
+        return json.loads(task.data) if task else None
     finally:
-        conn.close()
+        session.close()
 
-
-def get_task(task_id: str) -> Optional[dict]:
-    conn = get_db()
+def save_report(report_id: str, data: Dict) -> None:
+    session = get_session()
     try:
-        row = conn.execute(
-            "SELECT data FROM tasks WHERE task_id = ?", (task_id,)
-        ).fetchone()
-        return json.loads(row["data"]) if row else None
+        report = session.query(Report).filter(Report.report_id == report_id).first()
+        if report:
+            report.data = json.dumps(data)
+        else:
+            report = Report(report_id=report_id, data=json.dumps(data))
+            session.add(report)
+        session.commit()
     finally:
-        conn.close()
+        session.close()
 
-
-def save_report(report_id: str, data: dict) -> None:
-    conn = get_db()
+def get_report(report_id: str) -> Optional[Dict]:
+    session = get_session()
     try:
-        conn.execute(
-            "INSERT OR REPLACE INTO reports (report_id, data) VALUES (?, ?)",
-            (report_id, json.dumps(data)),
-        )
-        conn.commit()
+        report = session.query(Report).filter(Report.report_id == report_id).first()
+        return json.loads(report.data) if report else None
     finally:
-        conn.close()
+        session.close()
 
-
-def get_report(report_id: str) -> Optional[dict]:
-    conn = get_db()
+def cleanup_old_records(expiration_hours: int) -> Tuple[int, int]:
+    session = get_session()
     try:
-        row = conn.execute(
-            "SELECT data FROM reports WHERE report_id = ?", (report_id,)
-        ).fetchone()
-        return json.loads(row["data"]) if row else None
-    finally:
-        conn.close()
-
-
-def cleanup_old_records(expiration_hours: int) -> tuple[int, int]:
-    conn = get_db()
-    try:
-        expiration_secs = expiration_hours * 3600
-        cutoff = time.time() - expiration_secs
-        
-        cur = conn.cursor()
-        cur.execute("DELETE FROM tasks WHERE json_extract(data, '$.timestamp') < ?", (cutoff,))
-        tasks_deleted = cur.rowcount
-        
-        cur.execute("DELETE FROM reports WHERE json_extract(data, '$.timestamp') < ?", (cutoff,))
-        reports_deleted = cur.rowcount
-        
-        conn.commit()
+        cutoff = time.time() - (expiration_hours * 3600)
+        from sqlalchemy import text
+        tasks_deleted = session.execute(
+            text("DELETE FROM tasks WHERE json_extract(data, '$.timestamp') < :cutoff"),
+            {"cutoff": cutoff}
+        ).rowcount
+        reports_deleted = session.execute(
+            text("DELETE FROM reports WHERE json_extract(data, '$.timestamp') < :cutoff"),
+            {"cutoff": cutoff}
+        ).rowcount
+        session.commit()
         return tasks_deleted, reports_deleted
     except Exception:
+        session.rollback()
         return 0, 0
     finally:
-        conn.close()
+        session.close()
 
 init_db()

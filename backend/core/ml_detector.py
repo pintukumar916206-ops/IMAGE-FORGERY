@@ -1,8 +1,6 @@
 import io
-import json
 import logging
 import os
-
 import numpy as np
 from PIL import Image, ImageChops, ImageEnhance
 
@@ -15,18 +13,18 @@ class MLDetector:
         self.fallback_used = False
         self.input_name = None
         self.output_name = None
+        
         try:
             import onnxruntime as ort
             if os.path.exists(self.model_path):
                 self.model = ort.InferenceSession(self.model_path, providers=["CPUExecutionProvider"])
                 self.input_name = self.model.get_inputs()[0].name
                 self.output_name = self.model.get_outputs()[0].name
-                logger.info("loaded ONNX model from %s", self.model_path)
+                logger.debug(f"Loaded model from {self.model_path}")
             else:
-                logger.warning("model not found at %s", self.model_path)
                 self.fallback_used = True
         except Exception as exc:
-            logger.error("ONNX fail: %s", exc)
+            logger.warning(f"ONNX initialization failed: {exc}")
             self.fallback_used = True
 
     def _ela_array(self, file_path: str, size: int = 224) -> np.ndarray:
@@ -47,7 +45,7 @@ class MLDetector:
         tensor = np.transpose(ela, (2, 0, 1))
         return np.expand_dims(tensor, axis=0).astype(np.float32)
 
-    def _fallback_score(self, file_path: str) -> float:
+    def _calculate_heuristic_score(self, file_path: str) -> float:
         try:
             ela = self._ela_array(file_path)
             score = float(np.std(ela) * 2.2)
@@ -55,39 +53,7 @@ class MLDetector:
         except Exception:
             return 0.0
 
-    def _load_benchmarks(self) -> dict:
-        meta_path = os.path.join(os.path.dirname(os.path.abspath(self.model_path)), "metadata.json")
-        if os.path.exists(meta_path):
-            try:
-                with open(meta_path) as f:
-                    data = json.load(f)
-                param_count = data.get("model_params", 0)
-                param_str = f"~{param_count:,} parameters" if isinstance(param_count, int) else str(param_count)
-                return {
-                    "model_architecture": data.get("model_architecture", "Custom ForgeryCNN"),
-                    "benchmark_dataset": data.get("benchmark_dataset", "unknown"),
-                    "proven_accuracy": data.get("proven_accuracy", "N/A"),
-                    "false_positive_rate": data.get("false_positive_rate", "N/A"),
-                    "model_params": param_str,
-                    "avg_inference_ms": "38ms (CPU)",
-                    "confusion_matrix": data.get("confusion_matrix"),
-                    "trained_at": data.get("trained_at"),
-                }
-            except Exception:
-                pass
-        return {
-            "model_architecture": "Custom ForgeryCNN",
-            "benchmark_dataset": "no model trained yet",
-            "proven_accuracy": "N/A",
-            "false_positive_rate": "N/A",
-            "model_params": "~186K parameters",
-            "avg_inference_ms": "38ms (CPU)",
-            "confusion_matrix": None,
-            "trained_at": None,
-        }
-
     def predict_file(self, file_path: str) -> dict:
-        benchmarks = self._load_benchmarks()
         if self.model and self.input_name and self.output_name:
             try:
                 input_tensor = self._preprocess(file_path)
@@ -96,8 +62,16 @@ class MLDetector:
                 if score <= 1.0:
                     score *= 100.0
                 score = max(0.0, min(100.0, score))
-                return {"score": round(score, 2), "fallback_used": False, "hard_metrics": benchmarks}
+                return {
+                    "score": round(score, 2), 
+                    "method": "Neural Network",
+                    "fallback_used": False
+                }
             except Exception as exc:
-                logger.error("ONNX inference failed: %s", exc)
-                self.fallback_used = True
-        return {"score": round(self._fallback_score(file_path), 2), "fallback_used": True, "hard_metrics": benchmarks}
+                logger.error(f"Inference task failed: {exc}")
+        
+        return {
+            "score": round(self._calculate_heuristic_score(file_path), 2),
+            "method": "Heuristic ELA Variance",
+            "fallback_used": True
+        }
