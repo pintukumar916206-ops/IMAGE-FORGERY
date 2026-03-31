@@ -34,7 +34,7 @@ services:
           name: image-forgery-backend
           property: url
 
-envGroups:
+envVarGroups:
   - name: image-forgery-config
     envVars:
       - key: ELA_THRESHOLD
