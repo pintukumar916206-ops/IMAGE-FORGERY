@@ -1,5 +1,5 @@
 services:
-  # 1. Forensic Backend Service
+  # 1. Forensic Backend Service (Keep Docker)
   - type: web
     name: image-forgery-backend
     runtime: docker
@@ -14,11 +14,15 @@ services:
       - key: REPORT_EXPIRATION_HOURS
         value: "24"
 
-  # 2. Forensic Frontend Service
-  - type: web
+  # 2. Forensic Frontend (Switch to Native Static Site)
+  - type: static
     name: image-forgery-frontend
-    runtime: docker
-    dockerContext: ./frontend
-    dockerfilePath: Dockerfile
-    plan: free
-    # VITE_API_URL will be added manually in the dashboard after deployment
+    runtime: node # Use Render's native build engine
+    buildCommand: "cd frontend && npm install && npm run build"
+    staticPublishDir: "frontend/dist"
+    envVars:
+      - key: VITE_API_URL
+        fromService:
+          type: web
+          name: image-forgery-backend
+          property: url
