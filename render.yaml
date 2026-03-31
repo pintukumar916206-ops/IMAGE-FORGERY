@@ -3,24 +3,16 @@ services:
   - type: web
     name: image-forgery-backend
     runtime: docker
-    plan: starter # Starter plan or higher is required for persistent disks
+    plan: free # No payment needed
     envVars:
       - key: DEBUG
         value: "False"
       - key: SECRET_KEY
         generateValue: true
-      - key: DB_PATH
-        value: "/app/data/forgery.sqlite"
-      - key: UPLOAD_DIR
-        value: "/app/data/uploads"
       - key: ELA_THRESHOLD
-        value: "10.0"
+        value: "8.0"
       - key: REPORT_EXPIRATION_HOURS
         value: "24"
-    disk:
-      name: image-forgery-storage
-      mountPath: /app/data
-      sizeGB: 1
 
   # 2. Forensic Frontend Service
   - type: web
