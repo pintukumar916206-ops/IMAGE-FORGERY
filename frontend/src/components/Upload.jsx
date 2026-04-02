@@ -1,61 +1,55 @@
-import React, { useRef } from "react";
+import React, { useCallback } from "react";
+import { motion } from "framer-motion";
 
-const Upload = ({ onFileSelect, loading, preview, error, onStart }) => {
-  const fileInput = useRef(null);
-
-  const onDrop = (e) => {
+const Upload = ({ onFileSelect, onStart, preview, loading, error }) => {
+  const handleDrop = useCallback((e) => {
     e.preventDefault();
-    if (loading) return;
-    const file = e.dataTransfer.files?.[0];
-    if (file) onFileSelect(file);
-  };
+    const file = e.dataTransfer.files[0];
+    if (file && file.type.startsWith("image/")) {
+      onFileSelect(file);
+    }
+  }, [onFileSelect]);
 
-  const onFileChange = (e) => {
-    if (loading) return;
-    const file = e.target.files?.[0];
+  const handleChange = (e) => {
+    const file = e.target.files[0];
     if (file) onFileSelect(file);
   };
 
   return (
-    <div className="glass-panel upload-view">
-      <h2>Forensic Analysis Suite</h2>
-      <p className="description">
-        Verify image authenticity using multi-layered heuristic algorithms and localized artifacts detection.
-      </p>
-      <div
-        className={`upload-box ${loading ? "disabled" : ""}`}
+    <div className="glass-panel upload-card">
+      <div 
+        className={`drop-zone ${preview ? 'has-preview' : ''}`}
+        onDrop={handleDrop}
         onDragOver={(e) => e.preventDefault()}
-        onDrop={onDrop}
-        onClick={() => !loading && fileInput.current?.click()}
       >
         {preview ? (
-          <div className="preview-wrap">
-            <img src={preview} alt="Upload preview" />
-            <div className="overlay">Change image</div>
-          </div>
+          <img src={preview} alt="Preview" className="upload-preview" />
         ) : (
           <div className="upload-prompt">
-            <span className="upload-icon">Upload</span>
-            <p>Select or drop image for analysis</p>
+            <span className="upload-icon">📁</span>
+            <p>Drag or browse image to begin forensic scan</p>
           </div>
         )}
-        <input
-          type="file"
-          ref={fileInput}
-          hidden
-          accept="image/*"
-          onChange={onFileChange}
+        <input 
+          type="file" 
+          id="file-input" 
+          className="hidden" 
+          onChange={handleChange} 
+          accept="image/*" 
         />
+        <label htmlFor="file-input" className="overlay-label"></label>
       </div>
-      {error && <div className="error-msg">{error}</div>}
-      <button 
-        className="btn-primary" 
-        disabled={!preview || loading} 
-        onClick={onStart}
-        style={{ marginTop: '2rem' }}
-      >
-        {loading ? "Initializing..." : "Execute Pipeline"}
-      </button>
+
+      <div className="upload-actions">
+        {error && <div className="error-message">{error}</div>}
+        <button 
+          className="btn-primary" 
+          onClick={onStart} 
+          disabled={!preview || loading}
+        >
+          {loading ? "Initializing..." : "Start Core Analysis"}
+        </button>
+      </div>
     </div>
   );
 };

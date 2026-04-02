@@ -1,21 +1,9 @@
 {
-  "model_architecture": "Custom ForgeryCNN",
-  "benchmark_dataset": "synthetic JPEG-splice simulation",
-  "train_samples": 320,
-  "test_samples": 80,
-  "proven_accuracy": "100.0%",
-  "false_positive_rate": "0.0%",
-  "model_params": 155137,
-  "training_time_s": 120.3,
-  "confusion_matrix": [
-    [
-      200,
-      0
-    ],
-    [
-      0,
-      200
-    ]
-  ],
-  "trained_at": "2026-03-31T07:37:17.392689+00:00"
+  "model_architecture": "Lightweight-ForensicNet",
+  "model_type": "Stub/reference model for testing",
+  "note": "Current model file (622KB) is not a full ResNet18 (would be ~44MB at float32). Use for API testing only.",
+  "training_data_source": "CASIA v2 / IMD2020 (reference)",
+  "model_parameters": "Unknown - size mismatch indicates quantized or custom architecture",
+  "input_shape": [1, 3, 224, 224],
+  "onnx_opset": 11
 }

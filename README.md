@@ -1,57 +1,176 @@
-# Forensic Image Suite
+# Image Forgery Detection System
 
-A multi-layered system for verifying image authenticity. It utilizes classical forensic techniques alongside neural network scoring to identify structural and metadata inconsistencies.
+Forensic image analysis pipeline that combines classical signals and CNN inference.
 
-## Capabilities
+## What It Does
 
-- **Metadata Scanner**: Extracts EXIF data and compares software signatures against known editing suites.
-- **Error Level Analysis (ELA)**: Detects compression inconsistencies in JPEG bitstreams.
-- **Copy-Move Detection**: Identifies cloned regions using SIFT-based feature matching and spatial clustering.
-- **ML Scoring**: Provides a baseline forgery probability using an specialized CNN architecture.
+- Error Level Analysis (ELA) highlights JPEG recompression inconsistencies.
+- Copy-move detection uses ORB feature matching to detect duplicated regions.
+- Wavelet noise residue estimates high-frequency entropy anomalies.
+- CNN inference adds a learned tamper probability signal.
+- Final verdict is a weighted fusion of all four signals.
 
-## System Architecture
+If the ONNX model is missing or fails at runtime, the pipeline uses a neutral CNN score (`0.5`) and continues.
 
-The suite is built with a decoupled architecture for scalability:
+## Limitations
 
-1. **Service Layer**: FastAPI for high-concurrency request handling.
-2. **Analysis Pipeline**: Asynchronous background workers for processing forensic passes.
-3. **Storage**: SQLite for persistent report management.
-4. **Interface**: React-based dashboard for visual proof of manipulation.
+- Performance depends heavily on image quality and source.
+- ELA is strongest on JPEG; PNG/WebP can reduce signal quality.
+- Copy-move features degrade on heavily compressed or tiny images.
+- Current model metadata marks the shipped model as a testing/reference artifact.
+- This is not legal-grade or court-grade forensic proof.
 
-## Local Configuration
+## Security Notes
 
-1. Initialize environment:
-   ```bash
-   cp .env.example .env
-   ```
+- JWT bearer token required for detection, progress, and report endpoints.
+- Upload-media retrieval requires a token query parameter (`?token=<jwt>`).
+- Upload size capped at 50MB and streamed in chunks.
+- Upload directory cleanup runs periodically (older than 48 hours).
+- Detect endpoint is rate-limited (`10/minute` per IP).
 
-2. Install dependencies:
-   ```bash
-   pip install -r requirements.txt
-   npm install
-   ```
+## Stack
 
-3. Start services:
-   ```bash
-   npm run dev
-   ```
+- Backend: FastAPI, SQLAlchemy, ONNX Runtime, OpenCV, PyWavelets
+- Frontend: React 19, Vite, Framer Motion
+- Database: SQLite (dev), PostgreSQL (recommended for production)
 
-## Development and Testing
+## Setup
 
-The backend test suite covers API endpoints and core logic:
+### Prerequisites
+
+- Python 3.9+
+- Node.js 18+
+
+### Install
+
 ```bash
-python -m pytest tests/
+pip install -r requirements.txt
+cd frontend && npm install && cd ..
 ```
 
-Frontend builds are managed via Vite:
+### Configure Backend
+
 ```bash
-cd frontend && npm run build
+cp .env.example .env
 ```
 
-## Directory Structure
+### Configure Frontend
+
+Set frontend auth vars in `frontend/.env`:
+
+```bash
+VITE_API_URL=http://localhost:8000/api
+VITE_API_USERNAME=analyst
+VITE_API_PASSWORD=change-me-analyst
 ```
-backend/        - API and Forensic Logic
-frontend/       - Dashboard UI
-scripts/        - Model utilities
-tests/          - Backend verification suite
+
+The frontend auto-registers this user if it does not exist.
+
+### Run (Development)
+
+```bash
+# Terminal 1
+python -m uvicorn backend.main:app --reload --port 8000
+
+# Terminal 2
+cd frontend && npm run dev
 ```
+
+Frontend: `http://localhost:5173`
+
+## API
+
+### Register
+
+```http
+POST /api/auth/register
+Content-Type: application/json
+
+{
+  "username": "analyst",
+  "password": "change-me-analyst"
+}
+```
+
+### Get Token
+
+```http
+POST /api/auth/token
+Content-Type: application/json
+
+{
+  "username": "analyst",
+  "password": "change-me-analyst"
+}
+```
+
+Response:
+
+```json
+{
+  "access_token": "<jwt>",
+  "token_type": "bearer"
+}
+```
+
+### Submit Image
+
+```http
+POST /api/detect
+Authorization: Bearer <token>
+Content-Type: multipart/form-data
+```
+
+### Poll Progress
+
+```http
+GET /api/progress/{task_id}
+Authorization: Bearer <token>
+```
+
+### Get Report
+
+```http
+GET /api/report/{task_id}
+Authorization: Bearer <token>
+```
+
+Sample response:
+
+```json
+{
+  "isForged": false,
+  "verdict": "AUTHENTIC",
+  "confidence": 72.4,
+  "confidence_score": 0.27,
+  "confidence_display": 72.4,
+  "execution_time_ms": 3210.5,
+  "analyses": {
+    "ela": { "score": 0.12, "map": "..." },
+    "copy_move": { "matches": 3, "status": "Clean" },
+    "wavelet_noise": { "wavelet_std": 0.0032, "entropy": 3.1, "fingerprint_score": 0.3 },
+    "cnn_inference": 0.2341
+  }
+}
+```
+
+### Fetch Generated ELA Asset
+
+```http
+GET /api/uploads/{filename}?token=<jwt>
+```
+
+## Testing
+
+```bash
+pytest backend/test_detector.py -v
+pytest backend/test_api.py -v
+pytest -q
+```
+
+## Troubleshooting
+
+- `Missing token`: call `/api/auth/token` and send bearer token.
+- `File exceeds maximum size of 50MB`: reduce input size or raise backend limit.
+- `Uploaded file is not a valid image`: file content failed decode validation.
+- `Model file not found`: CNN score falls back to neutral `0.5`.

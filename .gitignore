@@ -1,4 +1,4 @@
-# Python & Environment
+# Standard Productive Exclusions
 __pycache__/
 *.py[cod]
 *$py.class
@@ -14,17 +14,15 @@ venv/
 *.egg-info/
 *.egg
 
-# Node & Frontend
+# Frontend (Node stuff)
 node_modules/
 dist/
-build/
 frontend/node_modules/
 frontend/dist/
-frontend/build/
 .npm
 .eslintcache
 
-# Project Specific
+# Project Specific Database & Artifacts 
 uploads/*
 !uploads/.gitkeep
 forgery.sqlite
@@ -39,15 +37,13 @@ backend_stderr.log
 _agents/
 _agent/
 
-# IDEs & Editor
+# Editor/IDE Config
 .vscode/
 .idea/
 *.swp
 *.swo
-*.sublime-project
-*.sublime-workspace
 
-# Operating System
+# OS Specific
 .DS_Store
 Thumbs.db
 desktop.ini

@@ -1,6 +1,6 @@
 {
   "name": "image-forgery-detection",
-  "version": "3.0.0",
+  "version": "1.0.0",
   "private": true,
   "scripts": {
     "start:backend": "python -m uvicorn backend.main:app --port 8000 --reload",
