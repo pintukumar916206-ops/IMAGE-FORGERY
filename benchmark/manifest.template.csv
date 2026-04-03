@@ -1,0 +1,5 @@
+dataset,image_path,label,split
+CASIA,data/casia/authentic_001.jpg,authentic,train
+CASIA,data/casia/tampered_001.jpg,tampered,val
+Columbia,data/columbia/auth_001.jpg,0,test
+Columbia,data/columbia/spliced_001.jpg,1,train

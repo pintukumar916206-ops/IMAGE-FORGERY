@@ -1,0 +1,23 @@
+{
+  "version": "bootstrap",
+  "source": "bootstrap_defaults",
+  "weights": {
+    "ela": 0.35,
+    "orb": 0.3,
+    "wavelet": 0.25,
+    "metadata": 0.1
+  },
+  "thresholds": {
+    "authentic": 0.38,
+    "tampered": 0.62
+  },
+  "agreement_margins": {
+    "tight": 0.08,
+    "normal": 0.12,
+    "loose": 0.18
+  },
+  "spread_cutoffs": {
+    "tight": 0.15,
+    "loose": 0.35
+  }
+}

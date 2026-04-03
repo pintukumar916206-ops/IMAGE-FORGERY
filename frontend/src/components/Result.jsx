@@ -1,175 +1,135 @@
-import React, { useState } from 'react';
-import { motion } from 'framer-motion';
-import { getMediaUrl } from '../services/api';
+import { useEffect, useMemo, useState } from "react";
+import { getMediaBlobUrl } from "../services/api";
 
-const Result = ({ report, preview, onReset }) => {
-  const [sliderPos, setSliderPos] = useState(50);
-  const { isForged } = report;
-  const confidence = report.confidence_display ?? report.confidence ?? 0;
-  const copyMove = report.analyses.copy_move ?? report.analyses.sift;
+const formatLabel = (label) => {
+  if (label === "likely_tampered") return "Likely edited";
+  if (label === "likely_authentic") return "Likely original";
+  if (label === "inconclusive") return "Inconclusive";
+  if (label === "invalid_input") return "Invalid image";
+  if (label === "failed") return "Failed";
+  return "Unknown";
+};
+
+const statusClass = (label) => {
+  if (label === "likely_tampered") return "status-bad";
+  if (label === "likely_authentic") return "status-good";
+  return "status-warn";
+};
+
+const safePercent = (value) => {
+  const number = Number(value || 0);
+  return `${(number * 100).toFixed(1)}%`;
+};
+
+const Result = ({ report, previewUrl, onReset }) => {
+  const [elaMapUrl, setElaMapUrl] = useState(null);
+  const score = Number(report.forensic_score ?? (report.score || 0) * 100).toFixed(1);
+  const details = report.details || {};
+  const elaMap = report.artifacts?.ela_map;
+  const label = report.label || "unknown";
+  const method = useMemo(() => {
+    const text = String(report.method || "forensic");
+    return text.replace(/_/g, " ");
+  }, [report.method]);
+
+  useEffect(() => {
+    let cancelled = false;
+    let objectUrl = null;
+
+    const load = async () => {
+      if (!elaMap) {
+        setElaMapUrl(null);
+        return;
+      }
+      try {
+        objectUrl = await getMediaBlobUrl(elaMap);
+        if (cancelled) {
+          if (objectUrl) URL.revokeObjectURL(objectUrl);
+          return;
+        }
+        setElaMapUrl(objectUrl);
+      } catch {
+        if (!cancelled) {
+          setElaMapUrl(null);
+        }
+      }
+    };
+
+    load();
+
+    return () => {
+      cancelled = true;
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl);
+      }
+    };
+  }, [elaMap]);
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 30 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="container"
-    >
-      <div className="dashboard-layout glass-panel" style={{ background: '#fff' }}>
-        <div className="left-panel" style={{ background: isForged ? 'var(--red-status)' : 'var(--accent-main)' }}>
-          <div>
-            <span className="tiny-label" style={{ opacity: 0.8 }}>VERDICT</span>
-            <h2 style={{ fontSize: '2.5rem', fontWeight: 900, textTransform: 'uppercase' }}>
-              {isForged ? 'FORGED' : 'AUTHENTIC'}
-            </h2>
+    <section className="panel result-panel">
+      <div className="result-header">
+        <h2>Analysis Result</h2>
+        <button type="button" className="secondary-btn" onClick={onReset}>
+          Analyze Another Image
+        </button>
+      </div>
 
-            <div style={{ marginTop: '2rem' }}>
-              <span className="tiny-label" style={{ opacity: 0.8 }}>CONFIDENCE</span>
-              <span className="big-stat" style={{ fontSize: '4.5rem' }}>{confidence.toFixed(1)}%</span>
-            </div>
-          </div>
-
-          <div className="footer-meta">
-            <div style={{ marginBottom: '1.5rem', fontWeight: 600, fontSize: '0.8rem', opacity: 0.7 }}>
-              Image Analysis Profile<br />
-              Processing Time: {(report.execution_time_ms ?? 0).toFixed(0)}ms
-            </div>
-            <button
-              onClick={onReset}
-              className="btn-primary"
-              style={{ width: '100%', background: '#fff', color: isForged ? 'var(--red-status)' : 'var(--accent-main)', border: 'none', boxShadow: 'none' }}
-            >
-              NEW ANALYSIS
-            </button>
-          </div>
+      <div className="result-grid">
+        <div className="result-card">
+          <p className="label">Score</p>
+          <p className="value">{score}%</p>
         </div>
 
-        <div className="right-panel">
-          <div className="analysis-grid">
-            <div className="signal-card" style={{ gridColumn: 'span 2' }}>
-              <span className="tiny-label">INTERACTIVE ELA COMPARISON</span>
-              <div style={{ position: 'relative', width: '100%', marginTop: '0.8rem', cursor: 'ew-resize' }}>
-                <div style={{
-                  position: 'relative',
-                  width: '100%',
-                  aspectRatio: '16/9',
-                  backgroundColor: '#000',
-                  borderRadius: '10px',
-                  overflow: 'hidden',
-                  border: '2px solid #000'
-                }}>
-                  <img
-                    src={preview}
-                    alt="Original"
-                    style={{ width: '100%', height: '100%', objectFit: 'contain', position: 'absolute' }}
-                  />
-                  <div style={{
-                    position: 'absolute',
-                    top: 0,
-                    left: 0,
-                    width: `${sliderPos}%`,
-                    height: '100%',
-                    overflow: 'hidden'
-                  }}>
-                    <img
-                      src={getMediaUrl(report.analyses.ela.map)}
-                      alt="ELA Map"
-                      style={{ width: `${100 / (sliderPos || 1)}%`, height: '100%', objectFit: 'contain' }}
-                    />
-                  </div>
-                  <div style={{
-                    position: 'absolute',
-                    top: 0,
-                    left: `${sliderPos}%`,
-                    width: '4px',
-                    height: '100%',
-                    backgroundColor: '#fff',
-                    boxShadow: '0 0 8px rgba(0,0,0,0.5)'
-                  }} />
-                  <div style={{
-                    position: 'absolute',
-                    top: '50%',
-                    left: `${sliderPos}%`,
-                    transform: 'translate(-50%, -50%)',
-                    backgroundColor: '#fff',
-                    padding: '4px 8px',
-                    borderRadius: '4px',
-                    fontSize: '0.7rem',
-                    fontWeight: 800,
-                    color: '#000'
-                  }}>
-                    ← ORIGINAL | ELA →
-                  </div>
-                </div>
-                <input
-                  type="range"
-                  min="0"
-                  max="100"
-                  value={sliderPos}
-                  onChange={(e) => setSliderPos(Number(e.target.value))}
-                  style={{
-                    width: '100%',
-                    marginTop: '0.8rem',
-                    cursor: 'pointer',
-                    height: '6px'
-                  }}
-                />
-              </div>
-              <p className="description" style={{ marginTop: '0.8rem' }}>
-                {isForged
-                  ? "Bright areas indicate compression inconsistencies. High variance suggests manipulation."
-                  : "ELA map should show uniform low values across image. Isolated bright areas are suspicious."}
-              </p>
-            </div>
+        <div className="result-card">
+          <p className="label">Status</p>
+          <p className={`status-chip ${statusClass(label)}`}>{formatLabel(label)}</p>
+        </div>
 
-            <div className="signal-card">
-              <span className="tiny-label">SIGNAL_ELA</span>
-              <div style={{ padding: '1rem', background: '#f8faf9', borderRadius: '8px', marginBottom: '1rem' }}>
-                <div style={{ fontSize: '1.4rem', fontWeight: 900, color: report.analyses.ela.score > 0.6 ? 'var(--red-status)' : 'var(--accent-main)' }}>
-                  {(report.analyses.ela.score * 100).toFixed(1)}%
-                </div>
-                <div style={{ fontSize: '0.7rem', marginTop: '0.3rem', opacity: 0.7 }}>Compression Variance</div>
-              </div>
-              <p className="description">Thresholds calibrated for JPEG bitstreams.</p>
-            </div>
+        <div className="result-card">
+          <p className="label">Method</p>
+          <p className="value">{method}</p>
+        </div>
 
-            <div className="signal-card">
-              <span className="tiny-label">SIGNAL_COPY-MOVE</span>
-              <div style={{ padding: '1rem', background: '#f8faf9', borderRadius: '8px', marginBottom: '1rem' }}>
-                <div style={{ fontSize: '1.4rem', fontWeight: 900 }}>{copyMove?.matches ?? 0}</div>
-                <div style={{ fontSize: '0.7rem', marginTop: '0.3rem', opacity: 0.7 }}>Matching Clusters</div>
-              </div>
-              <p className="description">ORB-based feature matching between regions.</p>
-            </div>
-
-            {report.analyses.wavelet_noise && (
-              <div className="signal-card">
-                <span className="tiny-label">SIGNAL_WAVELET_NOISE</span>
-                <div style={{ padding: '1rem', background: '#f8faf9', borderRadius: '8px', marginBottom: '1rem' }}>
-                  <div style={{ fontSize: '1.4rem', fontWeight: 900, color: report.analyses.wavelet_noise.entropy > 4.5 ? 'var(--red-status)' : 'var(--accent-main)' }}>
-                    {report.analyses.wavelet_noise.entropy.toFixed(3)}
-                  </div>
-                  <div style={{ fontSize: '0.7rem', marginTop: '0.3rem', opacity: 0.7 }}>High-Freq Noise Entropy</div>
-                </div>
-                <p className="description">Detects signal irregularities in the DWT HH band.</p>
-              </div>
-            )}
-
-            {report.analyses.cnn_inference !== undefined && (
-              <div className="signal-card">
-                <span className="tiny-label">MODEL_CNN_SCORE</span>
-                <div style={{ padding: '1rem', background: '#f8faf9', borderRadius: '8px', marginBottom: '1rem' }}>
-                  <div style={{ fontSize: '1.4rem', fontWeight: 900, color: report.analyses.cnn_inference > 0.7 ? 'var(--red-status)' : 'var(--accent-main)' }}>
-                    {(report.analyses.cnn_inference * 100).toFixed(1)}%
-                  </div>
-                  <div style={{ fontSize: '0.7rem', marginTop: '0.3rem', opacity: 0.7 }}>Deep Feature Probability</div>
-                </div>
-                <p className="description">Deep learning extraction score</p>
-              </div>
-            )}
-          </div>
+        <div className="result-card">
+          <p className="label">Time</p>
+          <p className="value">{Math.round(report.execution_time_ms || 0)} ms</p>
         </div>
       </div>
-    </motion.div>
+
+      <div className="details-grid">
+        <div className="detail-card">
+          <p className="label">ELA</p>
+          <p className="value">{safePercent(details.ela)}</p>
+        </div>
+
+        <div className="detail-card">
+          <p className="label">Feature Match</p>
+          <p className="value">{safePercent(details.orb)}</p>
+        </div>
+
+        <div className="detail-card">
+          <p className="label">Wavelet</p>
+          <p className="value">{safePercent(details.wavelet)}</p>
+        </div>
+
+        <div className="detail-card">
+          <p className="label">Metadata</p>
+          <p className="value">{safePercent(details.metadata)}</p>
+        </div>
+      </div>
+
+      <div className="ela-compare">
+        <div className="image-pane">
+          <p className="label">Original</p>
+          {previewUrl ? <img src={previewUrl} alt="Original" className="result-image" /> : <p className="helper">No preview</p>}
+        </div>
+
+        <div className="image-pane">
+          <p className="label">ELA Map</p>
+          {elaMapUrl ? <img src={elaMapUrl} alt="ELA map" className="result-image" /> : <p className="helper">Not available</p>}
+        </div>
+      </div>
+    </section>
   );
 };
 

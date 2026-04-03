@@ -1,79 +1,84 @@
-import os
 import tempfile
 from pathlib import Path
 
 import cv2
 import numpy as np
 
-from backend.core import detector
-
-
-def _write_test_image(tmpdir: str, filename: str = "sample.jpg") -> str:
-    img = np.random.randint(0, 256, (256, 256, 3), dtype=np.uint8)
-    file_path = os.path.join(tmpdir, filename)
-    ok = cv2.imwrite(file_path, img)
-    assert ok
-    return file_path
+from backend.app.services.detector import run_forensic_analysis, validate_image
 
 
 class TestValidateImage:
     def test_rejects_none(self):
-        valid, status = detector.validate_image(None)
+        valid, code = validate_image(None)
         assert valid is False
-        assert status == detector.ErrorCodes.ERR_INVALID_IMAGE
+        assert code == "ERR_INVALID_IMAGE"
 
-    def test_rejects_tiny_images(self):
-        img = np.zeros((32, 32, 3), dtype=np.uint8)
-        valid, status = detector.validate_image(img)
+    def test_rejects_tiny_image(self):
+        image = np.zeros((32, 32, 3), dtype=np.uint8)
+        valid, code = validate_image(image)
         assert valid is False
-        assert status == detector.ErrorCodes.ERR_LOW_RESOLUTION
+        assert code == "ERR_LOW_RESOLUTION"
 
-    def test_rejects_oversized_images(self):
-        img = np.zeros((5000, 5000, 3), dtype=np.uint8)
-        valid, status = detector.validate_image(img)
+    def test_rejects_oversized_image(self):
+        image = np.zeros((5000, 5000, 3), dtype=np.uint8)
+        valid, code = validate_image(image)
         assert valid is False
-        assert status == detector.ErrorCodes.ERR_INVALID_IMAGE
-
-    def test_accepts_supported_size(self):
-        img = np.zeros((1024, 1024, 3), dtype=np.uint8)
-        valid, status = detector.validate_image(img)
-        assert valid is True
-        assert status == detector.ErrorCodes.SUCCESS
+        assert code == "ERR_INVALID_IMAGE"
 
 
-class TestCNNFallback:
-    def test_run_cnn_inference_returns_neutral_without_model(self):
-        img = np.zeros((224, 224, 3), dtype=np.uint8)
-        score = detector.run_cnn_inference(None, img)
-        assert score == detector.NEUTRAL_CNN_SCORE
-
-
-class TestForensicPipeline:
-    def test_pipeline_runs_without_model_using_neutral_fallback(self, monkeypatch):
-        monkeypatch.setattr(detector, "load_onnx_model", lambda *_args, **_kwargs: None)
-
+class TestAnalysisPipeline:
+    def test_returns_analysis_contract(self):
         with tempfile.TemporaryDirectory() as tmpdir:
-            file_path = _write_test_image(tmpdir, "input.jpg")
-            Path(tmpdir).mkdir(parents=True, exist_ok=True)
+            image = np.random.randint(0, 255, (400, 400, 3), dtype=np.uint8)
+            file_path = str(Path(tmpdir) / "sample.jpg")
+            cv2.imwrite(file_path, image)
 
-            result = detector.run_forensic_pipeline(file_path, tmpdir)
+            result = run_forensic_analysis(file_path, tmpdir)
 
-        assert "error" not in result
-        assert result["isForged"] in (True, False)
-        assert 0.0 <= result["confidence"] <= 100.0
-        assert result["analyses"]["cnn_inference"] == detector.NEUTRAL_CNN_SCORE
-        assert "copy_move" in result["analyses"]
-        assert "sift" in result["analyses"]
+        assert result["method"] == "forensic"
+        assert 0.0 <= result["score"] <= 1.0
+        assert 0.0 <= result["forensic_score"] <= 100.0
+        assert "details" in result
+        assert {"ela", "orb", "metadata", "wavelet"}.issubset(result["details"].keys())
+        assert result["label"] in {"likely_tampered", "likely_authentic", "inconclusive"}
 
-    def test_pipeline_returns_error_for_invalid_image(self):
+    def test_invalid_image_returns_error_payload(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             tiny = np.zeros((32, 32, 3), dtype=np.uint8)
-            file_path = os.path.join(tmpdir, "tiny.jpg")
-            ok = cv2.imwrite(file_path, tiny)
-            assert ok
+            file_path = str(Path(tmpdir) / "tiny.jpg")
+            cv2.imwrite(file_path, tiny)
 
-            result = detector.run_forensic_pipeline(file_path, tmpdir)
+            result = run_forensic_analysis(file_path, tmpdir)
 
-        assert result["isForged"] is False
-        assert result["confidence"] == 0.0
-        assert result["error"] == detector.ErrorCodes.ERR_LOW_RESOLUTION
+        assert result["method"] == "forensic"
+        assert result["label"] == "invalid_input"
+        assert result["score"] == 0.0
+        assert result["error"] == "ERR_LOW_RESOLUTION"
+
+    def test_flags_extension_mismatch(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            image = np.random.randint(0, 255, (320, 320, 3), dtype=np.uint8)
+            png_path = Path(tmpdir) / "source.png"
+            mismatch_path = Path(tmpdir) / "mismatch.jpg"
+            cv2.imwrite(str(png_path), image)
+            mismatch_path.write_bytes(png_path.read_bytes())
+
+            result = run_forensic_analysis(str(mismatch_path), tmpdir)
+
+        metadata_flags = result["analysis"]["metadata"]["flags"]
+        assert any(flag.startswith("type_mismatch") for flag in metadata_flags)
+
+    def test_score_stability_after_reencode(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            rng = np.random.default_rng(11)
+            image = rng.integers(0, 255, size=(420, 420, 3), dtype=np.uint8)
+            original_path = Path(tmpdir) / "original.jpg"
+            reencoded_path = Path(tmpdir) / "reencoded.jpg"
+            cv2.imwrite(str(original_path), image, [cv2.IMWRITE_JPEG_QUALITY, 96])
+            reencoded = cv2.imread(str(original_path))
+            cv2.imwrite(str(reencoded_path), reencoded, [cv2.IMWRITE_JPEG_QUALITY, 86])
+
+            baseline = run_forensic_analysis(str(original_path), tmpdir)
+            perturbed = run_forensic_analysis(str(reencoded_path), tmpdir)
+
+        assert abs(float(baseline["score"]) - float(perturbed["score"])) <= 0.30

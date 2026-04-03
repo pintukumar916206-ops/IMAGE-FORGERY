@@ -25,6 +25,8 @@ frontend/dist/
 # Project Specific Database & Artifacts 
 uploads/*
 !uploads/.gitkeep
+benchmark/latest_metrics.json
+benchmark/latest_metrics.md
 forgery.sqlite
 backend_stdout.log
 backend_stderr.log

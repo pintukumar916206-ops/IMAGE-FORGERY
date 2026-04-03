@@ -1,9 +1,0 @@
-{
-  "model_architecture": "Lightweight-ForensicNet",
-  "model_type": "Stub/reference model for testing",
-  "note": "Current model file (622KB) is not a full ResNet18 (would be ~44MB at float32). Use for API testing only.",
-  "training_data_source": "CASIA v2 / IMD2020 (reference)",
-  "model_parameters": "Unknown - size mismatch indicates quantized or custom architecture",
-  "input_shape": [1, 3, 224, 224],
-  "onnx_opset": 11
-}
