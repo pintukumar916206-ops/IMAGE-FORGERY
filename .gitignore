@@ -1,4 +1,4 @@
-# Standard Productive Exclusions
+# Python Exclusions
 __pycache__/
 *.py[cod]
 *$py.class
@@ -11,10 +11,13 @@ venv/
 .env.local
 .env.*.local
 .pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
 *.egg-info/
 *.egg
 
-# Frontend (Node stuff)
+# Frontend (Node)
 node_modules/
 dist/
 frontend/node_modules/
@@ -22,22 +25,26 @@ frontend/dist/
 .npm
 .eslintcache
 
-# Project Specific Database & Artifacts 
+# Project Artifacts 
 uploads/*
 !uploads/.gitkeep
-benchmark/latest_metrics.json
-benchmark/latest_metrics.md
-forgery.sqlite
-backend_stdout.log
-backend_stderr.log
+benchmark/
+*.sqlite
+*.db
 *.log
 
-# Assistant & Logs
+# Docker
+.docker/
+
+# Assistant & Planning
 .gemini/
 .agents/
 .agent/
 _agents/
 _agent/
+implementation_plan.md
+task.md
+walkthrough.md
 
 # Editor/IDE Config
 .vscode/
@@ -49,3 +56,4 @@ _agent/
 .DS_Store
 Thumbs.db
 desktop.ini
+
