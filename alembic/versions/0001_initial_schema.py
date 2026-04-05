@@ -1,5 +1,3 @@
-"""initial schema with refresh token rotation"""
-
 from __future__ import annotations
 
 from alembic import op
